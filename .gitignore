@@ -43,3 +43,6 @@ Thumbs.db
 # Sync outputs (if testing locally)
 .sync-temp/
 test-output/
+
+# Git worktrees
+.worktrees/
