@@ -24,9 +24,9 @@ MarketplaceAggregator = sync_marketplaces.MarketplaceAggregator
 class TestEndToEndSync:
     """End-to-end functional tests with real git operations."""
 
-    def test_sync_with_chmouel_marketplace(self, tmp_path):
+    def test_sync_with_ralphbean_marketplace(self, tmp_path):
         """
-        Test syncing with chmouel's marketplace (as in test-sync-config.json).
+        Test syncing with ralphbean's marketplace (as in test-sync-config.json).
 
         This is a real integration test that clones the actual repository.
         """
@@ -55,7 +55,7 @@ class TestEndToEndSync:
         assert marketplace["version"] == "1.0.0"
         assert "plugins" in marketplace
 
-        # Should have plugins from chmouel's marketplace
+        # Should have plugins from ralphbean's marketplace
         assert len(marketplace["plugins"]) > 0
 
         # All plugins should have required fields
@@ -69,13 +69,13 @@ class TestEndToEndSync:
         provenance_field = "source_marketplace"
         for plugin in marketplace["plugins"]:
             assert provenance_field in plugin
-            assert plugin[provenance_field] == "chmouel"
+            assert plugin[provenance_field] == "ralphbean"
 
-        print(f"\nSynced {len(marketplace['plugins'])} plugins from chmouel's marketplace")
+        print(f"\nSynced {len(marketplace['plugins'])} plugins from ralphbean's marketplace")
 
     def test_sync_with_custom_config(self, tmp_path):
         """Test syncing with a custom configuration."""
-        # Create a custom config that pulls from chmouel's marketplace
+        # Create a custom config that pulls from ralphbean's marketplace
         config_file = tmp_path / "custom-config.json"
         config_data = {
             "version": "1.0",
@@ -88,10 +88,10 @@ class TestEndToEndSync:
             "sources": [
                 {
                     "type": "marketplace",
-                    "url": "https://github.com/chmouel/claude-code-plugins",
+                    "url": "https://github.com/ralphbean/claude-code-plugins",
                     "branch": "main",
                     "denylist": [],
-                    "tag_prefix": "chmouel-custom",
+                    "tag_prefix": "ralphbean-custom",
                 }
             ],
             "sync_settings": {
@@ -122,7 +122,7 @@ class TestEndToEndSync:
         # Check custom provenance field
         for plugin in marketplace["plugins"]:
             assert "origin" in plugin
-            assert plugin["origin"] == "chmouel-custom"
+            assert plugin["origin"] == "ralphbean-custom"
 
     def test_denylist_functionality(self, tmp_path):
         """Test that denylist properly filters out plugins."""
@@ -134,7 +134,7 @@ class TestEndToEndSync:
             "sources": [
                 {
                     "type": "marketplace",
-                    "url": "https://github.com/chmouel/claude-code-plugins",
+                    "url": "https://github.com/ralphbean/claude-code-plugins",
                     "branch": "main",
                     "denylist": [],
                 }
@@ -164,7 +164,7 @@ class TestEndToEndSync:
                 "sources": [
                     {
                         "type": "marketplace",
-                        "url": "https://github.com/chmouel/claude-code-plugins",
+                        "url": "https://github.com/ralphbean/claude-code-plugins",
                         "branch": "main",
                         "denylist": [plugin_to_block],
                     }
@@ -198,9 +198,9 @@ class TestEndToEndSync:
             "sources": [
                 {
                     "type": "marketplace",
-                    "url": "https://github.com/chmouel/claude-code-plugins",
+                    "url": "https://github.com/ralphbean/claude-code-plugins",
                     "branch": "main",
-                    "tag_prefix": "chmouel-test",
+                    "tag_prefix": "ralphbean-test",
                 }
             ],
             "sync_settings": {"provenance_field": "source_marketplace"},
@@ -218,17 +218,17 @@ class TestEndToEndSync:
         # Verify provenance tracking
         assert len(aggregator.provenance_map) > 0
 
-        # All entries should map to chmouel-test
+        # All entries should map to ralphbean-test
         for plugin_name, sources in aggregator.provenance_map.items():
             assert len(sources) > 0
-            assert "chmouel-test" in sources[0]
+            assert "ralphbean-test" in sources[0]
 
         # Verify in output file
         with open(output_file) as f:
             marketplace = json.load(f)
 
         for plugin in marketplace["plugins"]:
-            assert plugin["source_marketplace"] == "chmouel-test"
+            assert plugin["source_marketplace"] == "ralphbean-test"
 
     def test_deduplication(self, tmp_path):
         """Test that duplicate plugins are properly deduplicated."""
@@ -241,7 +241,7 @@ class TestEndToEndSync:
             "sources": [
                 {
                     "type": "marketplace",
-                    "url": "https://github.com/chmouel/claude-code-plugins",
+                    "url": "https://github.com/ralphbean/claude-code-plugins",
                     "branch": "main",
                     "tag_prefix": "source-a",
                 }
