@@ -97,10 +97,14 @@
 
       See .sync-config.json for source configuration."
 
-    # Push using CI/CD token
+    # Push using access token
     - |
       git config --global http.sslVerify false
-      git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      if [ -n "$GITLAB_PUSH_TOKEN" ]; then
+        git remote set-url origin "https://gitlab-ci-token:${GITLAB_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      else
+        git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      fi
       git push origin HEAD:${CI_COMMIT_REF_NAME}
 
     - echo "✓ Marketplace updated and pushed to $CI_COMMIT_REF_NAME"
