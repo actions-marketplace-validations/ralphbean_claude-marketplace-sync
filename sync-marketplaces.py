@@ -63,6 +63,7 @@ class MarketplaceAggregator:
         except Exception as e:
             self.log(f"Failed to aggregate marketplace: {e}", level="error")
             import traceback
+
             traceback.print_exc()
             return 1
 
@@ -119,7 +120,9 @@ class MarketplaceAggregator:
 
             # Add provenance
             plugin_copy = plugin.copy()
-            provenance_field = self.config.get("sync_settings", {}).get("provenance_field", "source_marketplace")
+            provenance_field = self.config.get("sync_settings", {}).get(
+                "provenance_field", "source_marketplace"
+            )
             plugin_copy[provenance_field] = "/".join(new_parent_chain)
 
             # Track provenance
@@ -130,7 +133,9 @@ class MarketplaceAggregator:
             self.log(f"  Adding plugin: {plugin_name} (from {'/'.join(new_parent_chain)})")
             self.all_plugins.append(plugin_copy)
 
-        self.log(f"✓ Processed {len(marketplace_data.get('plugins', []))} plugins from {tag_prefix}")
+        self.log(
+            f"✓ Processed {len(marketplace_data.get('plugins', []))} plugins from {tag_prefix}"
+        )
 
     def _process_skill(self, source: Dict, parent_chain: List[str]):
         """Process a single skill source."""
@@ -146,7 +151,9 @@ class MarketplaceAggregator:
         self._clone_repo(url, branch, clone_dir)
 
         # Copy skill to target location (in parent repo)
-        parent_dir = self.output_path.parent.parent  # Assuming output is .claude-plugin/marketplace.json
+        parent_dir = (
+            self.output_path.parent.parent
+        )  # Assuming output is .claude-plugin/marketplace.json
         target = parent_dir / target_path
 
         # Remove existing content
@@ -157,21 +164,25 @@ class MarketplaceAggregator:
         shutil.copytree(
             clone_dir,
             target,
-            ignore=shutil.ignore_patterns(*self.config.get("sync_settings", {}).get("exclude_patterns", [".git"]))
+            ignore=shutil.ignore_patterns(
+                *self.config.get("sync_settings", {}).get("exclude_patterns", [".git"])
+            ),
         )
 
         # Extract version from SKILL.md if present
         version = self._extract_version_from_skill(target / "SKILL.md")
 
         # Create plugin entry
-        provenance_field = self.config.get("sync_settings", {}).get("provenance_field", "source_marketplace")
+        provenance_field = self.config.get("sync_settings", {}).get(
+            "provenance_field", "source_marketplace"
+        )
         plugin_entry = {
             "name": name,
             "description": source.get("description", f"Skill: {name}"),
             "version": version,
             "source": f"./{target_path}",
             "category": source.get("category", "skills"),
-            provenance_field: "/".join(parent_chain) if parent_chain else "direct"
+            provenance_field: "/".join(parent_chain) if parent_chain else "direct",
         }
 
         self.all_plugins.append(plugin_entry)
@@ -187,7 +198,7 @@ class MarketplaceAggregator:
                 ["git", "clone", "--branch", branch, "--depth", "1", url, str(target_dir)],
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
             )
         except subprocess.CalledProcessError as e:
             self.log(f"Failed to clone {url}: {e.stderr}", level="error")
@@ -215,12 +226,18 @@ class MarketplaceAggregator:
                 content = f.read()
 
             # Try YAML frontmatter first
-            frontmatter_match = re.search(r'^---\s*\nversion:\s*["\']?([0-9.]+)["\']?\s*\n', content, re.MULTILINE)
+            frontmatter_match = re.search(
+                r'^---\s*\nversion:\s*["\']?([0-9.]+)["\']?\s*\n', content, re.MULTILINE
+            )
             if frontmatter_match:
                 return frontmatter_match.group(1)
 
             # Try metadata section
-            metadata_match = re.search(r'##\s*Skill Metadata.*?version:\s*["\']?([0-9.]+)["\']?', content, re.DOTALL | re.IGNORECASE)
+            metadata_match = re.search(
+                r'##\s*Skill Metadata.*?version:\s*["\']?([0-9.]+)["\']?',
+                content,
+                re.DOTALL | re.IGNORECASE,
+            )
             if metadata_match:
                 return metadata_match.group(1)
 
@@ -243,18 +260,21 @@ class MarketplaceAggregator:
                 seen_names.add(name)
                 unique_plugins.append(plugin)
             else:
-                self.log(f"Duplicate plugin '{name}' found, keeping first occurrence from: {plugin.get('source_marketplace', 'unknown')}")
+                self.log(
+                    f"Duplicate plugin '{name}' found, keeping first occurrence from: {plugin.get('source_marketplace', 'unknown')}"
+                )
 
         # Build marketplace structure
         marketplace_data = {
             "name": marketplace_config.get("name", "aggregated-marketplace"),
             "version": marketplace_config.get("version", "1.0.0"),
-            "description": marketplace_config.get("description", "Aggregated Claude Code marketplace"),
-            "owner": marketplace_config.get("owner", {
-                "name": "Marketplace Aggregator",
-                "email": "noreply@example.com"
-            }),
-            "plugins": unique_plugins
+            "description": marketplace_config.get(
+                "description", "Aggregated Claude Code marketplace"
+            ),
+            "owner": marketplace_config.get(
+                "owner", {"name": "Marketplace Aggregator", "email": "noreply@example.com"}
+            ),
+            "plugins": unique_plugins,
         }
 
         # Write to output file
@@ -262,7 +282,9 @@ class MarketplaceAggregator:
         with open(self.output_path, "w") as f:
             json.dump(marketplace_data, f, indent=2)
 
-        self.log(f"✓ Generated marketplace.json with {len(unique_plugins)} plugins at {self.output_path}")
+        self.log(
+            f"✓ Generated marketplace.json with {len(unique_plugins)} plugins at {self.output_path}"
+        )
 
         # Print summary
         print("\n=== Aggregation Summary ===")
@@ -283,18 +305,14 @@ def main():
     parser.add_argument(
         "--config",
         default=".sync-config.json",
-        help="Path to sync configuration file (default: .sync-config.json)"
+        help="Path to sync configuration file (default: .sync-config.json)",
     )
     parser.add_argument(
         "--output",
         default=".claude-plugin/marketplace.json",
-        help="Path to output marketplace.json file (default: .claude-plugin/marketplace.json)"
+        help="Path to output marketplace.json file (default: .claude-plugin/marketplace.json)",
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose logging"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
 

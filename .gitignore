@@ -39,6 +39,9 @@ Thumbs.db
 # Test outputs
 /tmp/
 *.log
+.pytest_cache/
+htmlcov/
+.coverage
 
 # Sync outputs (if testing locally)
 .sync-temp/
