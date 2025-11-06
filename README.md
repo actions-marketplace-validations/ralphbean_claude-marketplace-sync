@@ -288,10 +288,10 @@ Create `.gitlab-ci.yml` or include the template:
 
 ```yaml
 include:
-  - local: 'gitlab/.gitlab-ci.yml'
+  - local: 'gitlab/gitlab-ci.yml'
 ```
 
-See [gitlab/.gitlab-ci.yml](gitlab/.gitlab-ci.yml) for the full template.
+See [gitlab/gitlab-ci.yml](gitlab/gitlab-ci.yml) for the full template.
 
 ### Triggering Child Updates
 
@@ -486,7 +486,7 @@ See the example configurations and CI/CD templates:
 ### CI/CD Templates
 
 - **[github/workflows/sync-marketplaces.yml](github/workflows/sync-marketplaces.yml)** - GitHub Actions workflow
-- **[gitlab/.gitlab-ci.yml](gitlab/.gitlab-ci.yml)** - GitLab CI/CD template
+- **[gitlab/gitlab-ci.yml](gitlab/gitlab-ci.yml)** - GitLab CI/CD template
 
 ## Workflow for Organizations
 
