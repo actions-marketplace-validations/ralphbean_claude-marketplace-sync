@@ -60,7 +60,7 @@
 
   before_script:
     # Install dependencies
-    - apt-get update && apt-get install -y git
+    - microdnf install -y git
     # Configure git for commits
     - git config --global user.name "GitLab CI/CD Bot"
     - git config --global user.email "cicd@gitlab.com"
