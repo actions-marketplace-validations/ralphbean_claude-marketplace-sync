@@ -280,7 +280,7 @@ jobs:
           git push
 ```
 
-See [examples/github-action-sync.yml](examples/github-action-sync.yml) for a complete example.
+See [github/workflows/sync-marketplaces.yml](github/workflows/sync-marketplaces.yml) for a complete example.
 
 ### GitLab CI/CD
 
@@ -288,10 +288,10 @@ Create `.gitlab-ci.yml` or include the template:
 
 ```yaml
 include:
-  - local: 'examples/gitlab-ci-sync.yml'
+  - local: 'gitlab/gitlab-ci.yml'
 ```
 
-See [examples/gitlab-ci-sync.yml](examples/gitlab-ci-sync.yml) for the full template.
+See [gitlab/gitlab-ci.yml](gitlab/gitlab-ci.yml) for the full template.
 
 ### Triggering Child Updates
 
@@ -475,13 +475,18 @@ enterprise / engineering / platform-team
 
 ## Example Configurations
 
-See the [examples/](examples/) directory for complete working examples:
+See the example configurations and CI/CD templates:
+
+### Configuration Examples
 
 - **[sync-config-simple.json](examples/sync-config-simple.json)** - Basic two-level hierarchy
 - **[sync-config-enterprise.json](examples/sync-config-enterprise.json)** - Multi-department enterprise example
 - **[sync-config-with-denylist.json](examples/sync-config-with-denylist.json)** - Curated marketplace with denylisting
-- **[github-action-sync.yml](examples/github-action-sync.yml)** - GitHub Actions workflow
-- **[gitlab-ci-sync.yml](examples/gitlab-ci-sync.yml)** - GitLab CI/CD template
+
+### CI/CD Templates
+
+- **[github/workflows/sync-marketplaces.yml](github/workflows/sync-marketplaces.yml)** - GitHub Actions workflow
+- **[gitlab/gitlab-ci.yml](gitlab/gitlab-ci.yml)** - GitLab CI/CD template
 
 ## Workflow for Organizations
 
