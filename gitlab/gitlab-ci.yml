@@ -37,7 +37,7 @@
 # Hidden template job (prefix with . to make it abstract)
 # Users should extend this in their own .gitlab-ci.yml
 .sync-marketplaces-template:
-  image: registry.access.redhat.com/ubi10/python-312-minimal:latest
+  image: registry.access.redhat.com/ubi10/ubi-minimal:latest
   stage: deploy
 
   # Default variables - can be overridden by extending jobs
@@ -60,7 +60,7 @@
 
   before_script:
     # Install dependencies
-    - microdnf install -y git
+    - microdnf install -y git python3
     # Configure git for commits
     - git config --global user.name "GitLab CI/CD Bot"
     - git config --global user.email "cicd@gitlab.com"
