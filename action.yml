@@ -47,8 +47,13 @@ runs:
           VERBOSE_FLAG=""
         fi
 
+        # Get action path and normalize
+        ACTION_PATH="${{ github.action_path }}"
+        # Remove trailing slash if present
+        ACTION_PATH="${ACTION_PATH%/}"
+
         # Run the sync script and capture output
-        SYNC_OUTPUT=$(python3 "${{ github.action_path }}/sync-marketplaces.py" \
+        SYNC_OUTPUT=$(python3 "${ACTION_PATH}/sync-marketplaces.py" \
           --config "${{ inputs.config-path }}" \
           --output "${{ inputs.output-path }}" \
           $VERBOSE_FLAG 2>&1)
