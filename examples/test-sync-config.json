@@ -3,7 +3,7 @@
   "marketplace": {
     "name": "test-aggregated-marketplace",
     "version": "1.0.0",
-    "description": "Test marketplace aggregating from chmouel's marketplace",
+    "description": "Test marketplace aggregating from ralphbean's marketplace",
     "owner": {
       "name": "Test User",
       "email": "test@example.com"
@@ -12,10 +12,10 @@
   "sources": [
     {
       "type": "marketplace",
-      "url": "https://github.com/chmouel/claude-code-plugins",
+      "url": "https://github.com/ralphbean/claude-code-plugins",
       "branch": "main",
       "denylist": [],
-      "tag_prefix": "chmouel"
+      "tag_prefix": "ralphbean"
     }
   ],
   "sync_settings": {
