@@ -52,34 +52,40 @@ runs:
         # Remove trailing slash if present
         ACTION_PATH="${ACTION_PATH%/}"
 
-        # Run the sync script and capture output
-        SYNC_OUTPUT=$(python3 "${ACTION_PATH}/sync-marketplaces.py" \
+        # Create temp file for output
+        TEMP_OUTPUT=$(mktemp)
+
+        # Run the sync script and capture output to file
+        set +e  # Don't exit on error
+        python3 "${ACTION_PATH}/sync-marketplaces.py" \
           --config "${{ inputs.config-path }}" \
           --output "${{ inputs.output-path }}" \
-          $VERBOSE_FLAG 2>&1)
+          $VERBOSE_FLAG 2>&1 | tee "$TEMP_OUTPUT"
 
-        EXIT_CODE=$?
-
-        # Display output
-        echo "$SYNC_OUTPUT"
+        EXIT_CODE=${PIPESTATUS[0]}
+        set -e  # Re-enable exit on error
 
         # Exit if sync failed
         if [ $EXIT_CODE -ne 0 ]; then
-          echo "::error::Marketplace sync failed"
+          echo "::error::Marketplace sync failed with exit code $EXIT_CODE"
+          rm -f "$TEMP_OUTPUT"
           exit $EXIT_CODE
         fi
 
         # Parse output for plugin count
-        PLUGINS_COUNT=$(echo "$SYNC_OUTPUT" | grep "Total plugins:" | sed -E 's/.*Total plugins: ([0-9]+).*/\1/')
+        PLUGINS_COUNT=$(grep "Total plugins:" "$TEMP_OUTPUT" | sed -E 's/.*Total plugins: ([0-9]+).*/\1/' || echo "0")
         if [ -z "$PLUGINS_COUNT" ]; then
           PLUGINS_COUNT="0"
         fi
 
         # Parse output for marketplaces processed
-        MARKETPLACES_COUNT=$(echo "$SYNC_OUTPUT" | grep "Total marketplaces processed:" | sed -E 's/.*Total marketplaces processed: ([0-9]+).*/\1/')
+        MARKETPLACES_COUNT=$(grep "Total marketplaces processed:" "$TEMP_OUTPUT" | sed -E 's/.*Total marketplaces processed: ([0-9]+).*/\1/' || echo "0")
         if [ -z "$MARKETPLACES_COUNT" ]; then
           MARKETPLACES_COUNT="0"
         fi
+
+        # Clean up
+        rm -f "$TEMP_OUTPUT"
 
         # Set outputs
         echo "plugins-count=$PLUGINS_COUNT" >> $GITHUB_OUTPUT
