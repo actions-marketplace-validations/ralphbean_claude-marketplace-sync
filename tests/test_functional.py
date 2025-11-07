@@ -31,11 +31,15 @@ class TestEndToEndSync:
         This is a real integration test that clones the actual repository.
         """
         # Use the example test config
-        config_file = Path(__file__).parent.parent / "examples" / "test-sync-config.json"
+        config_file = (
+            Path(__file__).parent.parent / "examples" / "test-sync-config.json"
+        )
         output_file = tmp_path / "marketplace.json"
 
         # Create aggregator and run
-        aggregator = MarketplaceAggregator(str(config_file), str(output_file), verbose=True)
+        aggregator = MarketplaceAggregator(
+            str(config_file), str(output_file), verbose=True
+        )
         result = aggregator.run()
 
         # Verify success
@@ -65,13 +69,21 @@ class TestEndToEndSync:
             assert "version" in plugin
             assert "source" in plugin
 
-        # All plugins should have origin field
-        origin_field = "source_marketplace"
-        for plugin in marketplace["plugins"]:
-            assert origin_field in plugin
-            assert plugin[origin_field] == "ralphbean"
+        # Verify origins.json exists
+        origins_file = tmp_path / "origins.json"
+        assert origins_file.exists()
 
-        print(f"\nSynced {len(marketplace['plugins'])} plugins from ralphbean's marketplace")
+        with open(origins_file) as f:
+            origins = json.load(f)
+
+        # All plugins should have origin tracking
+        for plugin in marketplace["plugins"]:
+            assert plugin["name"] in origins
+            assert origins[plugin["name"]] == "ralphbean"
+
+        print(
+            f"\nSynced {len(marketplace['plugins'])} plugins from ralphbean's marketplace"
+        )
 
     def test_sync_with_custom_config(self, tmp_path):
         """Test syncing with a custom configuration."""
@@ -96,7 +108,6 @@ class TestEndToEndSync:
             ],
             "sync_settings": {
                 "exclude_patterns": [".git", ".github"],
-                "origin_field": "origin",
             },
         }
         config_file.write_text(json.dumps(config_data, indent=2))
@@ -104,7 +115,9 @@ class TestEndToEndSync:
         output_file = tmp_path / "output" / "marketplace.json"
 
         # Run aggregator
-        aggregator = MarketplaceAggregator(str(config_file), str(output_file), verbose=True)
+        aggregator = MarketplaceAggregator(
+            str(config_file), str(output_file), verbose=True
+        )
         result = aggregator.run()
 
         # Verify success
@@ -119,10 +132,17 @@ class TestEndToEndSync:
         assert marketplace["version"] == "2.0.0"
         assert len(marketplace["plugins"]) > 0
 
-        # Check custom origin field
+        # Check origins.json
+        origins_file = tmp_path / "output" / "origins.json"
+        assert origins_file.exists()
+
+        with open(origins_file) as f:
+            origins = json.load(f)
+
+        # All plugins should have origin with custom tag_prefix
         for plugin in marketplace["plugins"]:
-            assert "origin" in plugin
-            assert plugin["origin"] == "ralphbean-custom"
+            assert plugin["name"] in origins
+            assert origins[plugin["name"]] == "ralphbean-custom"
 
     def test_denylist_functionality(self, tmp_path):
         """Test that denylist properly filters out plugins."""
@@ -139,7 +159,6 @@ class TestEndToEndSync:
                     "denylist": [],
                 }
             ],
-            "sync_settings": {"origin_field": "source_marketplace"},
         }
         config_file_full.write_text(json.dumps(config_full, indent=2))
 
@@ -169,7 +188,6 @@ class TestEndToEndSync:
                         "denylist": [plugin_to_block],
                     }
                 ],
-                "sync_settings": {"origin_field": "source_marketplace"},
             }
             config_file_filtered.write_text(json.dumps(config_filtered, indent=2))
 
@@ -187,7 +205,10 @@ class TestEndToEndSync:
             assert plugin_to_block not in filtered_plugin_names
 
             # Should have one fewer plugin
-            assert len(marketplace_filtered["plugins"]) == len(marketplace_full["plugins"]) - 1
+            assert (
+                len(marketplace_filtered["plugins"])
+                == len(marketplace_full["plugins"]) - 1
+            )
 
     def test_origin_tracking(self, tmp_path):
         """Test that origin is properly tracked."""
@@ -203,14 +224,15 @@ class TestEndToEndSync:
                     "tag_prefix": "ralphbean-test",
                 }
             ],
-            "sync_settings": {"origin_field": "source_marketplace"},
         }
         config_file.write_text(json.dumps(config_data, indent=2))
 
         output_file = tmp_path / "marketplace.json"
 
         # Run with verbose to capture origin summary
-        aggregator = MarketplaceAggregator(str(config_file), str(output_file), verbose=True)
+        aggregator = MarketplaceAggregator(
+            str(config_file), str(output_file), verbose=True
+        )
         result = aggregator.run()
 
         assert result == 0
@@ -223,12 +245,20 @@ class TestEndToEndSync:
             assert len(sources) > 0
             assert "ralphbean-test" in sources[0]
 
-        # Verify in output file
+        # Verify in origins.json file
+        origins_file = tmp_path / "origins.json"
+        assert origins_file.exists()
+
+        with open(origins_file) as f:
+            origins = json.load(f)
+
+        # All plugins should have origin tracking
         with open(output_file) as f:
             marketplace = json.load(f)
 
         for plugin in marketplace["plugins"]:
-            assert plugin["source_marketplace"] == "ralphbean-test"
+            assert plugin["name"] in origins
+            assert origins[plugin["name"]] == "ralphbean-test"
 
     def test_deduplication(self, tmp_path):
         """Test that duplicate plugins are properly deduplicated."""
@@ -246,23 +276,32 @@ class TestEndToEndSync:
                     "tag_prefix": "source-a",
                 }
             ],
-            "sync_settings": {"origin_field": "source_marketplace"},
         }
         config_file.write_text(json.dumps(config_data, indent=2))
 
         output_file = tmp_path / "marketplace.json"
 
-        aggregator = MarketplaceAggregator(str(config_file), str(output_file), verbose=True)
+        aggregator = MarketplaceAggregator(
+            str(config_file), str(output_file), verbose=True
+        )
 
         # Manually add some duplicate plugins to test dedup
         aggregator.all_plugins = [
-            {"name": "plugin-a", "version": "1.0.0", "source_marketplace": "source-1"},
-            {"name": "plugin-b", "version": "1.0.0", "source_marketplace": "source-1"},
-            {"name": "plugin-a", "version": "2.0.0", "source_marketplace": "source-2"},  # Duplicate
-            {"name": "plugin-c", "version": "1.0.0", "source_marketplace": "source-1"},
+            {"name": "plugin-a", "version": "1.0.0"},
+            {"name": "plugin-b", "version": "1.0.0"},
+            {"name": "plugin-a", "version": "2.0.0"},  # Duplicate
+            {"name": "plugin-c", "version": "1.0.0"},
         ]
 
+        # Manually set origin_map to track origins
+        aggregator.origin_map = {
+            "plugin-a": ["source-1", "source-2"],  # Has multiple origins
+            "plugin-b": ["source-1"],
+            "plugin-c": ["source-1"],
+        }
+
         aggregator._generate_marketplace()
+        aggregator._generate_origins_file()
 
         with open(output_file) as f:
             marketplace = json.load(f)
@@ -277,10 +316,19 @@ class TestEndToEndSync:
         assert plugin_names.count("plugin-c") == 1
 
         # Verify first occurrence is kept (version 1.0.0 for plugin-a)
-        # and origin from both sources is merged (sorted)
         plugin_a = [p for p in marketplace["plugins"] if p["name"] == "plugin-a"][0]
         assert plugin_a["version"] == "1.0.0"
-        assert plugin_a["source_marketplace"] == ["source-1", "source-2"]
+
+        # Verify origin from both sources is in origins.json (sorted)
+        origins_file = tmp_path / "origins.json"
+        assert origins_file.exists()
+
+        with open(origins_file) as f:
+            origins = json.load(f)
+
+        assert origins["plugin-a"] == ["source-1", "source-2"]
+        assert origins["plugin-b"] == "source-1"  # Single source stored as string
+        assert origins["plugin-c"] == "source-1"
 
 
 class TestErrorHandling:
@@ -322,7 +370,9 @@ class TestErrorHandling:
 
         output_file = tmp_path / "output.json"
 
-        aggregator = MarketplaceAggregator(str(config_file), str(output_file), verbose=False)
+        aggregator = MarketplaceAggregator(
+            str(config_file), str(output_file), verbose=False
+        )
         result = aggregator.run()
 
         # Should return error code

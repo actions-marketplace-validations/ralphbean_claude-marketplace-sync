@@ -26,7 +26,6 @@
     }
   ],
   "sync_settings": {
-    "exclude_patterns": [".git", ".github", "node_modules", ".DS_Store"],
-    "origin_field": "source_marketplace"
+    "exclude_patterns": [".git", ".github", "node_modules", ".DS_Store"]
   }
 }

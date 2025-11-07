@@ -174,7 +174,11 @@ class TestConfigLoading:
             "version": "1.0",
             "marketplace": {"name": "test-marketplace"},
             "sources": [
-                {"type": "marketplace", "url": "https://example.com/repo", "branch": "main"}
+                {
+                    "type": "marketplace",
+                    "url": "https://example.com/repo",
+                    "branch": "main",
+                }
             ],
         }
         config_file.write_text(json.dumps(config_data))
@@ -252,19 +256,22 @@ class TestGenerateMarketplace:
             {
                 "name": "plugin1",
                 "version": "1.0.0",
-                "source_marketplace": "marketplace-a",
             },
             {
                 "name": "plugin2",
                 "version": "2.0.0",
-                "source_marketplace": "marketplace-a",
             },
             {
                 "name": "plugin1",
                 "version": "1.5.0",
-                "source_marketplace": "marketplace-b",
             },  # Duplicate
         ]
+
+        # Set origin_map
+        aggregator.origin_map = {
+            "plugin1": ["marketplace-a", "marketplace-b"],
+            "plugin2": ["marketplace-a"],
+        }
 
         aggregator._generate_marketplace()
 
@@ -275,8 +282,6 @@ class TestGenerateMarketplace:
         assert len(result["plugins"]) == 2
         assert result["plugins"][0]["name"] == "plugin1"
         assert result["plugins"][0]["version"] == "1.0.0"  # First occurrence kept
-        # source_marketplace should be merged array (sorted alphabetically)
-        assert result["plugins"][0]["source_marketplace"] == ["marketplace-a", "marketplace-b"]
         assert result["plugins"][1]["name"] == "plugin2"
 
 
@@ -288,7 +293,9 @@ class TestLogging:
         config_file = tmp_path / "config.json"
         config_file.write_text('{"sources": []}')
 
-        aggregator = MarketplaceAggregator(str(config_file), "output.json", verbose=True)
+        aggregator = MarketplaceAggregator(
+            str(config_file), "output.json", verbose=True
+        )
         aggregator.log("Test message")
 
         captured = capsys.readouterr()
@@ -300,7 +307,9 @@ class TestLogging:
         config_file = tmp_path / "config.json"
         config_file.write_text('{"sources": []}')
 
-        aggregator = MarketplaceAggregator(str(config_file), "output.json", verbose=False)
+        aggregator = MarketplaceAggregator(
+            str(config_file), "output.json", verbose=False
+        )
         aggregator.log("Test message")
 
         captured = capsys.readouterr()
@@ -311,7 +320,9 @@ class TestLogging:
         config_file = tmp_path / "config.json"
         config_file.write_text('{"sources": []}')
 
-        aggregator = MarketplaceAggregator(str(config_file), "output.json", verbose=False)
+        aggregator = MarketplaceAggregator(
+            str(config_file), "output.json", verbose=False
+        )
         aggregator.log("Error message", level="error")
 
         captured = capsys.readouterr()
@@ -329,7 +340,6 @@ class TestMarketplaceProcessing:
         config_data = {
             "marketplace": {"name": "test"},
             "sources": [],
-            "sync_settings": {"origin_field": "source_marketplace"},
         }
         config_file.write_text(json.dumps(config_data))
 
@@ -380,7 +390,8 @@ class TestMarketplaceProcessing:
         # Verify plugin was added
         assert len(aggregator.all_plugins) == 1
         assert aggregator.all_plugins[0]["name"] == "test-plugin"
-        assert "source_marketplace" in aggregator.all_plugins[0]
+        # Verify origin is tracked
+        assert "test-plugin" in aggregator.origin_map
 
     @patch.object(MarketplaceAggregator, "_clone_repo")
     def test_process_marketplace_with_denylist(self, mock_clone, tmp_path):
@@ -389,7 +400,6 @@ class TestMarketplaceProcessing:
         config_data = {
             "marketplace": {"name": "test"},
             "sources": [],
-            "sync_settings": {"origin_field": "source_marketplace"},
         }
         config_file.write_text(json.dumps(config_data))
 
@@ -456,7 +466,9 @@ class TestSourceURLConversion:
             )
         )
 
-        aggregator = MarketplaceAggregator(str(config_file), str(tmp_path / "output.json"))
+        aggregator = MarketplaceAggregator(
+            str(config_file), str(tmp_path / "output.json")
+        )
         aggregator.temp_dir = tmp_path / "temp"
         aggregator.temp_dir.mkdir()
 
@@ -524,7 +536,9 @@ class TestDiamondDependencyDeduplication:
             )
         )
 
-        aggregator = MarketplaceAggregator(str(config_file), str(tmp_path / "output.json"))
+        aggregator = MarketplaceAggregator(
+            str(config_file), str(tmp_path / "output.json")
+        )
         aggregator.temp_dir = tmp_path / "temp"
         aggregator.temp_dir.mkdir()
 
@@ -559,16 +573,25 @@ class TestDiamondDependencyDeduplication:
 
         # Process two different marketplaces
         aggregator._process_marketplace(
-            {"type": "marketplace", "url": "https://github.com/owner/marketplace-a", "branch": "main"},
+            {
+                "type": "marketplace",
+                "url": "https://github.com/owner/marketplace-a",
+                "branch": "main",
+            },
             parent_chain=[],
         )
         aggregator._process_marketplace(
-            {"type": "marketplace", "url": "https://github.com/owner/marketplace-b", "branch": "main"},
+            {
+                "type": "marketplace",
+                "url": "https://github.com/owner/marketplace-b",
+                "branch": "main",
+            },
             parent_chain=[],
         )
 
-        # Generate the final marketplace
+        # Generate the final marketplace and origins
         aggregator._generate_marketplace()
+        aggregator._generate_origins_file()
 
         # Read the generated file
         with open(aggregator.output_path) as f:
@@ -579,7 +602,18 @@ class TestDiamondDependencyDeduplication:
         plugin = result["plugins"][0]
         assert plugin["name"] == "shared-plugin"
 
-        # source_marketplace should be an array with both sources, sorted for consistency
-        assert isinstance(plugin["source_marketplace"], list)
-        assert len(plugin["source_marketplace"]) == 2
-        assert plugin["source_marketplace"] == ["marketplace-a", "marketplace-b"]  # Alphabetically sorted
+        # Verify origins.json was created with merged origins
+        # origins.json should be in the same directory as marketplace.json
+        origins_file = tmp_path / "origins.json"
+        assert origins_file.exists()
+
+        with open(origins_file) as f:
+            origins = json.load(f)
+
+        # origin should be an array with both sources, sorted for consistency
+        assert isinstance(origins["shared-plugin"], list)
+        assert len(origins["shared-plugin"]) == 2
+        assert origins["shared-plugin"] == [
+            "marketplace-a",
+            "marketplace-b",
+        ]  # Alphabetically sorted

@@ -42,7 +42,10 @@ class MarketplaceAggregator:
         """Log a message if verbose mode is enabled."""
         if self.verbose or level == "error":
             prefix = "ERROR" if level == "error" else "INFO"
-            print(f"[{prefix}] {message}", file=sys.stderr if level == "error" else sys.stdout)
+            print(
+                f"[{prefix}] {message}",
+                file=sys.stderr if level == "error" else sys.stdout,
+            )
 
     def run(self):
         """Main entry point for the aggregator."""
@@ -57,6 +60,9 @@ class MarketplaceAggregator:
 
                 # Generate final marketplace.json
                 self._generate_marketplace()
+
+                # Generate origins.json with provenance information
+                self._generate_origins_file()
 
                 self.log("✓ Marketplace aggregation complete!")
                 return 0
@@ -118,12 +124,8 @@ class MarketplaceAggregator:
                 self.log(f"  Skipping denylisted plugin: {plugin_name}")
                 continue
 
-            # Add origin
+            # Copy plugin without adding origin field
             plugin_copy = plugin.copy()
-            origin_field = self.config.get("sync_settings", {}).get(
-                "origin_field", "source_marketplace"
-            )
-            plugin_copy[origin_field] = "/".join(new_parent_chain)
 
             # Convert local source paths to remote URLs
             if "source" in plugin_copy and plugin_copy["source"].startswith("./"):
@@ -137,7 +139,9 @@ class MarketplaceAggregator:
                 self.origin_map[plugin_name] = []
             self.origin_map[plugin_name].append("/".join(new_parent_chain))
 
-            self.log(f"  Adding plugin: {plugin_name} (from {'/'.join(new_parent_chain)})")
+            self.log(
+                f"  Adding plugin: {plugin_name} (from {'/'.join(new_parent_chain)})"
+            )
             self.all_plugins.append(plugin_copy)
 
         self.log(
@@ -180,17 +184,19 @@ class MarketplaceAggregator:
         version = self._extract_version_from_skill(target / "SKILL.md")
 
         # Create plugin entry
-        origin_field = self.config.get("sync_settings", {}).get(
-            "origin_field", "source_marketplace"
-        )
         plugin_entry = {
             "name": name,
             "description": source.get("description", f"Skill: {name}"),
             "version": version,
             "source": f"./{target_path}",
             "category": source.get("category", "skills"),
-            origin_field: "/".join(parent_chain) if parent_chain else "direct",
         }
+
+        # Track origin
+        origin = "/".join(parent_chain) if parent_chain else "direct"
+        if name not in self.origin_map:
+            self.origin_map[name] = []
+        self.origin_map[name].append(origin)
 
         self.all_plugins.append(plugin_entry)
         self.log(f"✓ Added skill: {name} (version: {version})")
@@ -207,7 +213,16 @@ class MarketplaceAggregator:
 
         try:
             subprocess.run(
-                ["git", "clone", "--branch", branch, "--depth", "1", url, str(target_dir)],
+                [
+                    "git",
+                    "clone",
+                    "--branch",
+                    branch,
+                    "--depth",
+                    "1",
+                    url,
+                    str(target_dir),
+                ],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -256,18 +271,17 @@ class MarketplaceAggregator:
 
             return "1.0.0"
         except Exception as e:
-            self.log(f"Failed to extract version from {skill_md_path}: {e}", level="error")
+            self.log(
+                f"Failed to extract version from {skill_md_path}: {e}", level="error"
+            )
             return "1.0.0"
 
     def _generate_marketplace(self):
         """Generate the final marketplace.json file."""
         marketplace_config = self.config.get("marketplace", {})
 
-        # Deduplicate plugins and merge origin
+        # Deduplicate plugins (keep first occurrence)
         seen_plugins = {}  # name -> plugin dict
-        origin_field = self.config.get("sync_settings", {}).get(
-            "origin_field", "source_marketplace"
-        )
 
         for plugin in self.all_plugins:
             name = plugin["name"]
@@ -275,28 +289,8 @@ class MarketplaceAggregator:
                 # First occurrence - keep it
                 seen_plugins[name] = plugin
             else:
-                # Duplicate - merge origin information
-                self.log(
-                    f"Duplicate plugin '{name}' found, merging origin from: {plugin.get(origin_field, 'unknown')}"
-                )
-
-                # Get existing origin (convert to list if string)
-                existing = seen_plugins[name].get(origin_field)
-                if isinstance(existing, str):
-                    existing = [existing]
-                elif existing is None:
-                    existing = []
-
-                # Get new origin (convert to list if string)
-                new = plugin.get(origin_field)
-                if isinstance(new, str):
-                    new = [new]
-                elif new is None:
-                    new = []
-
-                # Merge and sort for consistency
-                merged = sorted(set(existing + new))
-                seen_plugins[name][origin_field] = merged
+                # Duplicate - just log it (origin merging happens in origin_map)
+                self.log(f"Duplicate plugin '{name}' found, keeping first occurrence")
 
         unique_plugins = list(seen_plugins.values())
 
@@ -308,7 +302,8 @@ class MarketplaceAggregator:
                 "description", "Aggregated Claude Code marketplace"
             ),
             "owner": marketplace_config.get(
-                "owner", {"name": "Marketplace Aggregator", "email": "noreply@example.com"}
+                "owner",
+                {"name": "Marketplace Aggregator", "email": "noreply@example.com"},
             ),
             "plugins": unique_plugins,
         }
@@ -333,6 +328,27 @@ class MarketplaceAggregator:
             for plugin_name, sources in sorted(self.origin_map.items()):
                 print(f"  {plugin_name}: {', '.join(sources)}")
 
+    def _generate_origins_file(self):
+        """Generate the origins.json file with provenance information."""
+        # Build origins data structure
+        # For each plugin, if it has multiple origins, store as array; if single origin, store as string
+        origins_data = {}
+        for plugin_name, sources in self.origin_map.items():
+            if len(sources) == 1:
+                origins_data[plugin_name] = sources[0]
+            else:
+                # Multiple sources - store as sorted array for consistency
+                origins_data[plugin_name] = sorted(set(sources))
+
+        # Write to origins.json in the same directory as marketplace.json
+        origins_file = self.output_path.parent / "origins.json"
+        with open(origins_file, "w") as f:
+            json.dump(origins_data, f, indent=2)
+
+        self.log(
+            f"✓ Generated origins.json with {len(origins_data)} plugin origins at {origins_file}"
+        )
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -348,7 +364,9 @@ def main():
         default=".claude-plugin/marketplace.json",
         help="Path to output marketplace.json file (default: .claude-plugin/marketplace.json)",
     )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
 
     args = parser.parse_args()
 

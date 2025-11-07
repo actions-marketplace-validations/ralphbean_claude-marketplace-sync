@@ -105,13 +105,12 @@ Result: `enterprise-marketplace` contains all plugins from both trees
 
 ### Origin Tracking
 
-Each plugin gets tagged with its source path:
+Plugin provenance is tracked in a separate `.claude-plugins/origins.json` file:
 
 ```json
 {
-  "name": "pipeline-debugger",
-  "source_marketplace": "enterprise/engineering/platform-team",
-  ...
+  "pipeline-debugger": "enterprise/engineering/platform-team",
+  "another-plugin": ["source-a", "source-b"]
 }
 ```
 
@@ -119,6 +118,7 @@ This allows users to:
 - See where plugins originated
 - Filter by source organization
 - Understand trust boundaries
+- Handle diamond dependencies (plugins appearing in multiple sources)
 
 ## Configuration
 
@@ -155,8 +155,7 @@ This allows users to:
     }
   ],
   "sync_settings": {
-    "exclude_patterns": [".git", ".github", "node_modules"],
-    "origin_field": "source_marketplace"
+    "exclude_patterns": [".git", ".github", "node_modules"]
   }
 }
 ```
@@ -208,14 +207,12 @@ Adds a single skill directly:
 ```json
 {
   "sync_settings": {
-    "exclude_patterns": [".git", ".github", "node_modules", "__pycache__"],
-    "origin_field": "source_marketplace"
+    "exclude_patterns": [".git", ".github", "node_modules", "__pycache__"]
   }
 }
 ```
 
 - **exclude_patterns**: Files/directories to exclude when copying skills
-- **origin_field**: Field name for tracking plugin source (appears in marketplace.json)
 
 ## Usage
 
@@ -228,8 +225,9 @@ python3 sync-marketplaces.py \
   --output .claude-plugin/marketplace.json \
   --verbose
 
-# Check the generated marketplace
-cat .claude-plugin/marketplace.json | jq '.plugins[] | {name, source_marketplace}'
+# Check the generated marketplace and origins
+cat .claude-plugin/marketplace.json | jq '.plugins[] | {name, version}'
+cat .claude-plugin/origins.json | jq '.'
 ```
 
 ### Command-Line Options
@@ -694,25 +692,24 @@ See [examples/sync-config-mixed-sources.json](examples/sync-config-mixed-sources
 
 ## Origin Tracking
 
-Every plugin gets a `source_marketplace` field (configurable via `origin_field`):
+Plugin provenance is tracked in `.claude-plugin/origins.json`, separate from the marketplace.json schema:
 
 ```json
 {
-  "name": "pipeline-debugger",
-  "description": "Debug CI/CD pipelines",
-  "version": "1.0.0",
-  "source": "https://github.com/the-platform-team/pipeline-debugger",
-  "category": "debugging",
-  "source_marketplace": "enterprise/engineering/platform-team"
+  "pipeline-debugger": "enterprise/engineering/platform-team",
+  "shared-plugin": ["source-a", "source-b"]
 }
 ```
 
-### Use Cases for Origin
+This file maps plugin names to their origins. Plugins from a single source use a string, while plugins appearing in multiple sources (diamond dependencies) use an array.
+
+### Use Cases for Origin Tracking
 
 1. **Trust Decisions**: Users can see the chain of custody
 2. **Filtering**: Filter plugins by organization
 3. **Debugging**: Trace where a plugin came from
 4. **Auditing**: Track which department/team owns which plugins
+5. **Diamond Dependencies**: Understand when plugins appear in multiple marketplaces
 
 ### Origin Format
 
@@ -726,6 +723,14 @@ Example:
 ```
 enterprise / engineering / platform-team
 ```
+
+### Why a Separate File?
+
+The origins.json file is kept separate from marketplace.json because:
+- The `source_marketplace` field is not part of the official Claude Code marketplace schema
+- Keeps marketplace.json compliant with Claude Code's schema requirements
+- Makes it easier to query and filter plugins by origin
+- Allows proper handling of diamond dependencies without schema conflicts
 
 ## Example Configurations
 

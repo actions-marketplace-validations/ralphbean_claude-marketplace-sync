@@ -51,7 +51,6 @@
     }
   ],
   "sync_settings": {
-    "exclude_patterns": [".git", ".github", "node_modules", ".DS_Store", "__pycache__"],
-    "origin_field": "source_marketplace"
+    "exclude_patterns": [".git", ".github", "node_modules", ".DS_Store", "__pycache__"]
   }
 }
