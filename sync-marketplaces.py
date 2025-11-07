@@ -127,12 +127,14 @@ class MarketplaceAggregator:
             # Copy plugin without adding origin field
             plugin_copy = plugin.copy()
 
-            # Convert local source paths to remote URLs
-            if "source" in plugin_copy and plugin_copy["source"].startswith("./"):
-                # Extract the plugin path from the local source
-                local_path = plugin_copy["source"].lstrip("./")
-                # Create remote URL pointing to the source marketplace
-                plugin_copy["source"] = f"{url}/tree/{branch}/{local_path}"
+            # Convert local source paths to proper schema-compliant source objects
+            if "source" in plugin_copy:
+                source = plugin_copy["source"]
+                # Only convert if it's a string starting with "./" (local path)
+                if isinstance(source, str) and source.startswith("./"):
+                    # Convert to proper GitHub or URL source object
+                    plugin_copy["source"] = self._convert_source_to_object(source, url)
+                # If source is already an object or non-local string, keep as-is
 
             # Track origin
             if plugin_name not in self.origin_map:
@@ -241,6 +243,66 @@ class MarketplaceAggregator:
         name = path.rstrip("/").split("/")[-1]
         name = name.replace(".git", "")
         return name
+
+    def _parse_github_url(self, url: str) -> Optional[Tuple[str, str]]:
+        """
+        Parse a GitHub URL and extract owner/repo.
+
+        Returns (owner, repo) tuple if it's a GitHub URL, None otherwise.
+
+        Examples:
+            https://github.com/owner/repo.git -> ("owner", "repo")
+            https://github.com/owner/repo -> ("owner", "repo")
+            git@github.com:owner/repo.git -> ("owner", "repo")
+            https://gitlab.com/owner/repo -> None
+        """
+        # Check for GitHub domain
+        if "github.com" not in url:
+            return None
+
+        # Extract path portion
+        if url.startswith("http"):
+            path = urlparse(url).path
+        else:
+            # SSH format: git@github.com:owner/repo.git
+            path = url.split(":")[-1]
+
+        # Clean up path
+        path = path.strip("/").replace(".git", "")
+        parts = path.split("/")
+
+        if len(parts) >= 2:
+            owner, repo = parts[0], parts[1]
+            return (owner, repo)
+
+        return None
+
+    def _convert_source_to_object(self, source: str, marketplace_url: str) -> Dict:
+        """
+        Convert a local source path to proper schema-compliant source object.
+
+        Args:
+            source: Local path like "./plugins/foo"
+            marketplace_url: URL of the marketplace containing this plugin
+
+        Returns:
+            GitHub source object: {"source": "github", "repo": "owner/repo", "path": "..."}
+            or URL source object: {"source": "url", "url": "...", "path": "..."}
+        """
+        # Extract the plugin path from the local source
+        local_path = source.lstrip("./")
+
+        # Try to parse as GitHub URL
+        github_info = self._parse_github_url(marketplace_url)
+
+        if github_info:
+            owner, repo = github_info
+            return {"source": "github", "repo": f"{owner}/{repo}", "path": local_path}
+        else:
+            # Non-GitHub URL - use URL object format
+            # Clean up URL (remove .git if present for cleaner URLs)
+            clean_url = marketplace_url
+            return {"source": "url", "url": clean_url, "path": local_path}
 
     def _extract_version_from_skill(self, skill_md_path: Path) -> str:
         """Extract semantic version from SKILL.md file."""

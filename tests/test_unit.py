@@ -446,10 +446,10 @@ class TestMarketplaceProcessing:
 
 
 class TestSourceURLConversion:
-    """Test that local source paths are converted to remote URLs."""
+    """Test that local source paths are converted to proper schema-compliant formats."""
 
-    def test_marketplace_plugins_use_remote_source_urls(self, tmp_path):
-        """Test that plugins from marketplaces have remote source URLs, not local paths."""
+    def test_github_source_object_for_marketplace_plugins(self, tmp_path):
+        """Test that plugins from GitHub marketplaces use GitHub source objects."""
         config_file = tmp_path / "config.json"
         config_file.write_text(
             json.dumps(
@@ -501,16 +501,174 @@ class TestSourceURLConversion:
             parent_chain=[],
         )
 
-        # Verify the plugin was added with a remote URL source
+        # Verify the plugin was added with proper GitHub source object
         assert len(aggregator.all_plugins) == 1
         plugin = aggregator.all_plugins[0]
         assert plugin["name"] == "test-plugin"
 
-        # Source should be a remote URL, not a local path
-        assert not plugin["source"].startswith("./")
-        assert plugin["source"].startswith("https://")
-        assert "upstream-marketplace" in plugin["source"]
-        assert "test-plugin" in plugin["source"]
+        # Source should be a GitHub object, not a string
+        assert isinstance(plugin["source"], dict)
+        assert plugin["source"]["source"] == "github"
+        assert plugin["source"]["repo"] == "owner/upstream-marketplace"
+        assert plugin["source"]["path"] == "plugins/test-plugin"
+
+    def test_github_source_object_with_git_suffix(self, tmp_path):
+        """Test that .git suffix is removed from GitHub repo names."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "marketplace": {"name": "test", "version": "1.0.0"},
+                    "sources": [],
+                }
+            )
+        )
+
+        aggregator = MarketplaceAggregator(str(config_file), str(tmp_path / "output.json"))
+        aggregator.temp_dir = tmp_path / "temp"
+        aggregator.temp_dir.mkdir()
+
+        def fake_clone(url, branch, target_dir):
+            target_dir.mkdir(parents=True, exist_ok=True)
+            plugin_dir = target_dir / ".claude-plugin"
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            marketplace_json = plugin_dir / "marketplace.json"
+            marketplace_json.write_text(
+                json.dumps(
+                    {
+                        "plugins": [
+                            {
+                                "name": "test-plugin",
+                                "version": "1.0.0",
+                                "source": "./skills/plugin",
+                            }
+                        ]
+                    }
+                )
+            )
+
+        aggregator._clone_repo = fake_clone
+
+        # Process marketplace with .git suffix
+        aggregator._process_marketplace(
+            {
+                "type": "marketplace",
+                "url": "https://github.com/owner/repo.git",
+                "branch": "main",
+            },
+            parent_chain=[],
+        )
+
+        plugin = aggregator.all_plugins[0]
+        # .git should be removed
+        assert plugin["source"]["repo"] == "owner/repo"
+
+    def test_non_github_url_source_object(self, tmp_path):
+        """Test that non-GitHub URLs use URL source objects."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "marketplace": {"name": "test", "version": "1.0.0"},
+                    "sources": [],
+                }
+            )
+        )
+
+        aggregator = MarketplaceAggregator(str(config_file), str(tmp_path / "output.json"))
+        aggregator.temp_dir = tmp_path / "temp"
+        aggregator.temp_dir.mkdir()
+
+        def fake_clone(url, branch, target_dir):
+            target_dir.mkdir(parents=True, exist_ok=True)
+            plugin_dir = target_dir / ".claude-plugin"
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            marketplace_json = plugin_dir / "marketplace.json"
+            marketplace_json.write_text(
+                json.dumps(
+                    {
+                        "plugins": [
+                            {
+                                "name": "test-plugin",
+                                "version": "1.0.0",
+                                "source": "./plugins/test",
+                            }
+                        ]
+                    }
+                )
+            )
+
+        aggregator._clone_repo = fake_clone
+
+        # Process GitLab marketplace
+        aggregator._process_marketplace(
+            {
+                "type": "marketplace",
+                "url": "https://gitlab.com/owner/repo.git",
+                "branch": "main",
+            },
+            parent_chain=[],
+        )
+
+        plugin = aggregator.all_plugins[0]
+        # Should be URL object for non-GitHub sources
+        assert isinstance(plugin["source"], dict)
+        assert plugin["source"]["source"] == "url"
+        assert plugin["source"]["url"] == "https://gitlab.com/owner/repo.git"
+        assert plugin["source"]["path"] == "plugins/test"
+
+    def test_local_source_paths_remain_unchanged(self, tmp_path):
+        """Test that already-local source paths are kept as-is."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "marketplace": {"name": "test", "version": "1.0.0"},
+                    "sources": [],
+                }
+            )
+        )
+
+        aggregator = MarketplaceAggregator(str(config_file), str(tmp_path / "output.json"))
+        aggregator.temp_dir = tmp_path / "temp"
+        aggregator.temp_dir.mkdir()
+
+        def fake_clone(url, branch, target_dir):
+            target_dir.mkdir(parents=True, exist_ok=True)
+            plugin_dir = target_dir / ".claude-plugin"
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            marketplace_json = plugin_dir / "marketplace.json"
+            marketplace_json.write_text(
+                json.dumps(
+                    {
+                        "plugins": [
+                            {
+                                "name": "test-plugin",
+                                "version": "1.0.0",
+                                # Source is already an object (e.g., from a marketplace that already uses proper format)
+                                "source": {"source": "github", "repo": "some/repo"},
+                            }
+                        ]
+                    }
+                )
+            )
+
+        aggregator._clone_repo = fake_clone
+
+        aggregator._process_marketplace(
+            {
+                "type": "marketplace",
+                "url": "https://github.com/owner/marketplace.git",
+                "branch": "main",
+            },
+            parent_chain=[],
+        )
+
+        plugin = aggregator.all_plugins[0]
+        # Should remain as GitHub object
+        assert isinstance(plugin["source"], dict)
+        assert plugin["source"]["source"] == "github"
+        assert plugin["source"]["repo"] == "some/repo"
 
 
 class TestDiamondDependencyDeduplication:
