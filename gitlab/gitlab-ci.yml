@@ -60,7 +60,7 @@
 
   before_script:
     # Install dependencies
-    - microdnf install -y git python3 curl
+    - dnf install -y git python3 curl
     # Configure git for commits
     - git config --global user.name "GitLab CI/CD Bot"
     - git config --global user.email "cicd@gitlab.com"
